@@ -89,8 +89,8 @@ export class FlightControls {
     let thrust = 0.0;
 
     // Pitch: Forward (W) / Backward (S)
-    if (this.keys.KeyW) pitch -= 1.0;
-    if (this.keys.KeyS) pitch += 1.0;
+    if (this.keys.KeyS) pitch -= 1.0;
+    if (this.keys.KeyW) pitch += 1.0;
 
     // Yaw: Rotate Left (A) / Right (D)
     if (this.keys.KeyA) yawRate += 1.0;
