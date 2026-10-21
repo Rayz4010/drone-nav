@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous Drone Navigation | Deep RL Simulation</title>
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Three.js ES Modules Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.174.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.174.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Navigation Bar & Mode Switcher -->
+  <header id="top-bar">
+    <div class="brand">
+      <span class="brand-icon">▲</span>
+      <div class="brand-text">
+        <h1>DRONE-RL // 3D SIM</h1>
+        <span class="subtitle">Autonomous Navigation System</span>
+      </div>
+    </div>
+
+    <!-- Dual Mode Toggle -->
+    <div class="mode-control">
+      <span class="control-label">CONTROL MODE:</span>
+      <div class="toggle-group">
+        <button id="btn-mode-manual" class="btn-toggle active" title="WASD + Space/Shift flight">
+          <span class="dot"></span> MANUAL [WASD]
+        </button>
+        <button id="btn-mode-autonomous" class="btn-toggle" title="Autonomous DRL obstacle avoidance">
+          <span class="dot"></span> AUTONOMOUS [RL]
+        </button>
+      </div>
+    </div>
+
+    <!-- Backend / Inference Engine Selector -->
+    <div class="engine-control">
+      <span class="control-label">INFERENCE:</span>
+      <select id="engine-select" class="hud-select">
+        <option value="autonomous_hybrid" selected>Autonomous Gap-Seeking APF (Active)</option>
+        <option value="browser_neural">Browser Neural Policy (Option A)</option>
+        <option value="websocket">FastAPI WebSocket (Option B)</option>
+      </select>
+      <span id="ws-indicator" class="status-indicator online" title="Backend connection status"></span>
+    </div>
+
+    <!-- Evaluation Benchmark Modal Trigger -->
+    <div class="eval-btn-group">
+      <button id="btn-open-eval" class="btn-eval" title="View Evaluation Benchmark Graphs & Analytics">
+        <span class="eval-icon">📊</span> EVAL REPORT
+      </button>
+    </div>
+  </header>
+
+  <!-- Left Telemetry & HUD Overlay -->
+  <aside id="telemetry-panel" class="hud-card">
+    <div class="card-header">
+      <span class="card-title">TELEMETRY & FLIGHT DYNAMICS</span>
+      <span id="flight-mode-badge" class="badge badge-manual">MANUAL</span>
+    </div>
+
+    <div class="telemetry-grid">
+      <div class="metric">
+        <span class="metric-label">POSITION (X, Y, Z)</span>
+        <span id="tel-pos" class="metric-val">0.0, 3.0, 0.0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">ATTITUDE (P / R / Y)</span>
+        <span id="tel-attitude" class="metric-val">0.0°, 0.0°, 0.0°</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">LINEAR VELOCITY</span>
+        <span id="tel-vel" class="metric-val">0.00 m/s</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">DISTANCE TO GOAL</span>
+        <span id="tel-dist" class="metric-val highlight">15.4 m</span>
+      </div>
+    </div>
+
+    <!-- Episode Stats -->
+    <div class="divider"></div>
+    <div class="card-header">
+      <span class="card-title">REINFORCEMENT LEARNING STATS</span>
+    </div>
+    <div class="telemetry-grid">
+      <div class="metric">
+        <span class="metric-label">EPISODIC REWARD</span>
+        <span id="tel-reward" class="metric-val text-green">+0.00</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">COLLISIONS</span>
+        <span id="tel-collisions" class="metric-val text-red">0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">WAYPOINTS REACHED</span>
+        <span id="tel-goals" class="metric-val text-yellow">0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">INFERENCE LATENCY</span>
+        <span id="tel-fps" class="metric-val">60 FPS (0.2ms)</span>
+      </div>
+    </div>
+
+    <!-- Sensor Visualization & Settings -->
+    <div class="divider"></div>
+    <div class="controls-section">
+      <div class="control-row">
+        <span>LIDAR Sensors (16 Rays):</span>
+        <button id="btn-toggle-lidar" class="btn-action active">VISIBLE</button>
+      </div>
+      <div class="control-row">
+        <span>Camera View:</span>
+        <select id="camera-select" class="hud-select">
+          <option value="chase" selected>Chase Cam (Third-Person)</option>
+          <option value="orbit">Free Orbit Cam</option>
+          <option value="top">Top-Down Tactical</option>
+          <option value="fpv">Pod Nose FPV</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <span>Procedural Obstacles:</span>
+        <button id="btn-regen-world" class="btn-action">RANDOMIZE</button>
+      </div>
+      <div class="control-row">
+        <span>Target Waypoint:</span>
+        <button id="btn-new-goal" class="btn-action">NEW GOAL</button>
+      </div>
+    </div>
+
+    <!-- Real-Time Live Flight Dynamics Graph -->
+    <div class="divider"></div>
+    <div class="card-header">
+      <span class="card-title">FLIGHT DYNAMICS (LIVE)</span>
+      <span class="graph-legend"><span class="leg-cyan">─ Dist</span> <span class="leg-green">─ Alt</span></span>
+    </div>
+    <div class="canvas-chart-box">
+      <canvas id="dynamics-canvas" width="280" height="75"></canvas>
+    </div>
+
+    <!-- 360 LIDAR Polar Scope -->
+    <div class="divider"></div>
+    <div class="card-header">
+      <span class="card-title">360° LIDAR RADAR SCOPE</span>
+    </div>
+    <div class="radar-box">
+      <canvas id="radar-canvas" width="280" height="110"></canvas>
+    </div>
+  </aside>
+
+  <!-- Bottom Flight Keybinds Helper -->
+  <footer id="bottom-hud">
+    <div class="keybinds-bar">
+      <span class="kb-item"><kbd>W</kbd><kbd>S</kbd> Pitch / Forward-Back</span>
+      <span class="kb-item"><kbd>A</kbd><kbd>D</kbd> Yaw Rotate</span>
+      <span class="kb-item"><kbd>Q</kbd><kbd>E</kbd> Strafe Left-Right</span>
+      <span class="kb-item"><kbd>SPACE</kbd> Up</span>
+      <span class="kb-item"><kbd>SHIFT</kbd>/<kbd>C</kbd> Down</span>
+      <span class="kb-item"><kbd>M</kbd> Toggle Mode</span>
+      <span class="kb-item"><kbd>R</kbd> Reset Drone</span>
+    </div>
+  </footer>
+
+  <!-- Evaluation Benchmark & Analytics Modal -->
+  <div id="eval-modal" class="modal-overlay hidden">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>📊 AUTONOMOUS DRL EVALUATION DASHBOARD</h2>
+          <span class="subtitle">Multi-Episode Benchmark Analytics & 3D Flight Trajectories</span>
+        </div>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <span class="kpi-val text-green">75.0%</span>
+          <span class="kpi-label">SUCCESS RATE</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-val text-cyan">0.0%</span>
+          <span class="kpi-label">COLLISION RATE</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-val text-yellow">4.5s</span>
+          <span class="kpi-label">AVG TIME TO GOAL</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-val text-purple">+170.3</span>
+          <span class="kpi-label">MEAN RETURN</span>
+        </div>
+      </div>
+
+      <!-- High-Res Graph Report Image -->
+      <div class="modal-plot-container">
+        <img id="eval-plot-img" src="assets/evaluation_report.png" alt="Evaluation Benchmark Plots">
+      </div>
+
+      <div class="modal-footer">
+        <span class="footer-note">Benchmark generated across 8 randomized procedural obstacle field episodes in conda tf2.18.</span>
+        <span class="terminal-cmd">python backend/plot_eval.py --episodes 10</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Collision / Event Banner Notification -->
+  <div id="event-toast" class="toast hidden"></div>
+
+  <!-- Main JavaScript App -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "autonomous-drone-drl",
+  "version": "1.0.0",
+  "description": "Autonomous Drone Navigation Using Deep Reinforcement Learning (Three.js & PyTorch/SB3)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite frontend --port 3000 --host",
+    "build": "vite build frontend --outDir dist",
+    "preview": "vite preview --port 3000"
+  },
+  "dependencies": {
+    "three": "^0.174.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}
