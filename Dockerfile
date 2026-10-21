@@ -3,16 +3,19 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies (build-essential, git, etc.)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python requirements
-COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+# Install PyTorch CPU wheel first to keep image lightweight (~180MB vs 1.5GB) and fast on Render/Railway
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Copy source code and models
+# Copy and install requirements from root
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy source code, frontend, and models
 COPY backend /app/backend
 COPY frontend /app/frontend
 
